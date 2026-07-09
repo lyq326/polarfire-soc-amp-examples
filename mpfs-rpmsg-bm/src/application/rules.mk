@@ -55,7 +55,10 @@ endif
 CORE_CFLAGS+= $(EXT_CFLAGS) -DDEFINE_MALLOC -DDEFINE_FREE -no-pie -fno-PIE 
 
 ifdef MASTER
+$(info INFO:Config On MASTER )
 CORE_CFLAGS+= -DRPMSG_MASTER
+else
+$(info INFO:Config On REMOTE )
 endif
 
 ifdef REMOTEPROC

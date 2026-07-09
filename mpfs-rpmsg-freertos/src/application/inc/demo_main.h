@@ -15,11 +15,13 @@
 #include "rpmsg_ns.h"
 
 #define printf_to(...) ee_printf_to(__VA_ARGS__)
+#define printf_app(fmt, ...) ee_printf_to(UART_APP, fmt, ##__VA_ARGS__)
+#define printf_hart(fmt, ...) ee_printf(fmt, ##__VA_ARGS__)
 
 #ifdef RPMSG_MASTER
-#define UART_APP &g_mss_uart1_lo
-#else
 #define UART_APP &g_mss_uart3_lo
+#else
+#define UART_APP &g_mss_uart2_lo
 #endif
 
 typedef void *rpmsg_comm_stack_handle_t;
@@ -37,7 +39,7 @@ typedef struct _rpmsg_comm_stack
 /**
  * functions
  */
-void start_demo(void);
+void start_demo(uint64_t hartid);
 
 void rpmsg_pingpong_demo_setup(rpmsg_comm_stack_handle_t handle);
 void rpmsg_pingpong_demo(rpmsg_comm_stack_handle_t handle);

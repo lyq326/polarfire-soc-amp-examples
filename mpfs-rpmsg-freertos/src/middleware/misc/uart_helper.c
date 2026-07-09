@@ -11,7 +11,19 @@
 #include <string.h>
 #include <stdint.h>
 
+#include "FreeRTOS.h"
+#include "semphr.h"
 #include "uart_helper.h"
+
+static SemaphoreHandle_t g_uart_tx_mutex = NULL;
+
+static void ensure_uart_tx_mutex(void)
+{
+    if (g_uart_tx_mutex == NULL)
+    {
+        g_uart_tx_mutex = xSemaphoreCreateMutex();
+    }
+}
 
 static inline mss_uart_instance_t *get_uart_instance(int hartid)
 {
@@ -44,9 +56,21 @@ static inline mss_uart_instance_t *get_uart_instance(int hartid)
 int uart_putstring(int hartid, char *p)
 {
     const uint32_t len = (uint32_t)strlen(p);
-
     mss_uart_instance_t *pUart = get_uart_instance(hartid);
+
+    ensure_uart_tx_mutex();
+    if (g_uart_tx_mutex != NULL)
+    {
+        (void)xSemaphoreTake(g_uart_tx_mutex, portMAX_DELAY);
+    }
+
     MSS_UART_polled_tx_string(pUart, (const uint8_t *)p);
+
+    if (g_uart_tx_mutex != NULL)
+    {
+        (void)xSemaphoreGive(g_uart_tx_mutex);
+    }
+
     return len;
 }
 
@@ -54,7 +78,19 @@ int uart_putstring_to(mss_uart_instance_t *this_uart, char *p)
 {
     const uint32_t len = (uint32_t)strlen(p);
 
+    ensure_uart_tx_mutex();
+    if (g_uart_tx_mutex != NULL)
+    {
+        (void)xSemaphoreTake(g_uart_tx_mutex, portMAX_DELAY);
+    }
+
     MSS_UART_polled_tx_string(this_uart, (const uint8_t *)p);
+
+    if (g_uart_tx_mutex != NULL)
+    {
+        (void)xSemaphoreGive(g_uart_tx_mutex);
+    }
+
     return len;
 }
 
@@ -64,7 +100,18 @@ void uart_putc(int hartid, const char ch)
     string[0] = (uint8_t)ch;
     string[1] = 0u;
 
+    ensure_uart_tx_mutex();
+    if (g_uart_tx_mutex != NULL)
+    {
+        (void)xSemaphoreTake(g_uart_tx_mutex, portMAX_DELAY);
+    }
+
     mss_uart_instance_t *pUart = get_uart_instance(hartid);
     MSS_UART_polled_tx_string(pUart, (const uint8_t *)string);
+
+    if (g_uart_tx_mutex != NULL)
+    {
+        (void)xSemaphoreGive(g_uart_tx_mutex);
+    }
 }
 

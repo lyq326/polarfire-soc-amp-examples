@@ -45,6 +45,8 @@ static void* rpmsg_lite_base = RPMSG_SHARED_MEMORY_BASE;
  * Function prototypes
  */
 static void freertos_task_one( void *pvParameters );
+static void freertos_task_keepalive( void *pvParameters );
+static void keepalive_timer_cb(TimerHandle_t xTimer);
 static void rpmsg_setup(rpmsg_comm_stack_handle_t handle);
 void clear_rpmsg_buffer(rpmsg_comm_stack_handle_t handle);
 
@@ -56,7 +58,7 @@ static void app_nameservice_isr_cb(uint32_t new_ept, const char *new_ept_name, u
  * Functions
  *******************************************************************************/
 
-void start_demo()
+void start_demo(uint64_t hartid)
 {
 	BaseType_t rtos_result;
 
@@ -75,9 +77,9 @@ void start_demo()
 #endif
 
 #ifdef RPMSG_MASTER
-    (void)mss_config_clk_rst(MSS_PERIPH_MMUART1, (uint8_t) MPFS_HAL_FIRST_HART, PERIPHERAL_ON);
-#else
     (void)mss_config_clk_rst(MSS_PERIPH_MMUART3, (uint8_t) MPFS_HAL_FIRST_HART, PERIPHERAL_ON);
+#else
+    (void)mss_config_clk_rst(MSS_PERIPH_MMUART2, (uint8_t) MPFS_HAL_FIRST_HART, PERIPHERAL_ON);
 #endif
 
     PLIC_init();
@@ -86,6 +88,14 @@ void start_demo()
                    MSS_UART_DATA_8_BITS | MSS_UART_NO_PARITY);
 
     rtos_result = xTaskCreate( freertos_task_one, "task1", configMINIMAL_STACK_SIZE, NULL, PRIMARY_PRIORITY, NULL );
+    if(1 != rtos_result)
+    {
+        int ix;
+        for(;;)
+            ix++;
+    }
+
+    rtos_result = xTaskCreate( freertos_task_keepalive, "keepalive", configMINIMAL_STACK_SIZE, NULL, PRIMARY_PRIORITY, NULL );
     if(1 != rtos_result)
     {
         int ix;
@@ -115,6 +125,31 @@ void clear_rpmsg_buffer(rpmsg_comm_stack_handle_t handle)
     }
 }
 
+static void keepalive_timer_cb(TimerHandle_t xTimer)
+{
+    (void)xTimer;
+    printf_app("keepalive tick at %lu ms\r\n", (unsigned long) xTaskGetTickCount() * portTICK_PERIOD_MS);
+}
+
+void freertos_task_keepalive( void *pvParameters )
+{
+    TimerHandle_t xKeepAliveTimer;
+    const TickType_t xPeriod = pdMS_TO_TICKS( 5000UL );
+
+    (void)pvParameters;
+
+    xKeepAliveTimer = xTimerCreate( "keepalive", xPeriod, pdTRUE, NULL, keepalive_timer_cb );
+    if( NULL != xKeepAliveTimer )
+    {
+        (void)xTimerStart( xKeepAliveTimer, 0 );
+    }
+
+    for( ;; )
+    {
+        vTaskDelay( xPeriod );
+    }
+}
+
 void freertos_task_one( void *pvParameters )
 {
     uint8_t rx_buff[1];
@@ -139,7 +174,7 @@ void freertos_task_one( void *pvParameters )
 
     vPortSetupTimer();
 
-    MSS_UART_polled_tx(UART_APP, g_message, sizeof(g_message));
+    printf_app("%s", (const char *)g_message);
 
     /* 
     If remoteproc is enabled, configure the IHC so that we can receive control

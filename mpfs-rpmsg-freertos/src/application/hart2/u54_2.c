@@ -47,7 +47,7 @@ void u54_2(void)
 
     if(MPFS_HAL_FIRST_HART == hartid)
     {
-        start_demo();
+        start_demo(hartid);
         /* Never return */
     }
 
